@@ -11,6 +11,12 @@ import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
+  'Animate Scene': false, // Added for HW 2
+  'Animate Colors' : false, // added
+  Speed: 1.0, // Added for HW2
+  BombXPos: 0.0, // added
+  BombYPos: 0.0, // added
+  BombZPos: 0.0, // added
   'Load Scene': loadScene, // A function pointer, essentially
 };
 
@@ -48,6 +54,13 @@ function main() {
   // Add controls to the gui
   const gui = new DAT.GUI();
 
+  gui.add(controls, 'Animate Scene'); // Added for HW2
+  gui.add(controls, 'Animate Colors'); // Added for HW2
+  gui.add(controls, 'Speed', 1.0, 10.0).step(1.0); // Added for HW2
+  gui.add(controls, 'BombXPos', -15.0, 15.0).step(1.0); // Added for HW2
+  gui.add(controls, 'BombYPos', -15.0, 15.0).step(1.0); // Added for HW2
+  gui.add(controls, 'BombZPos', -15.0, 15.0).step(1.0); // Added for HW2
+
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement> document.getElementById('canvas');
   const gl = <WebGL2RenderingContext> canvas.getContext('webgl2');
@@ -83,6 +96,28 @@ function main() {
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.clear();
     processKeyPresses();
+
+    // Added for HW2
+    if(controls["Animate Colors"] == true){
+      flat.setUColorsOn(1.0);
+    }
+    else{
+      flat.setUColorsOn(0.0);
+    }
+    if(controls["Animate Scene"] == true){
+      // set value to 1
+      flat.setUAnim(1.0);
+      flat.setUSpeed(controls.Speed);
+    }
+    else{
+      // set value to 0
+      flat.setUAnim(0.0);
+      flat.setUSpeed(1.0);
+    }
+
+    // passing slider info - Added for HW2
+    flat.setBombOffset(controls.BombXPos, controls.BombYPos, controls.BombZPos);
+
     renderer.render(camera, flat, [
       square,
     ], time);

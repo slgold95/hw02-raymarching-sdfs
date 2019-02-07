@@ -29,6 +29,10 @@ class ShaderProgram {
   unifUp: WebGLUniformLocation;
   unifDimensions: WebGLUniformLocation;
   unifTime: WebGLUniformLocation;
+  unifAnim : WebGLUniformLocation; // Added for HW2
+  unifColors : WebGLUniformLocation; // Added for HW2
+  unifSpeed : WebGLUniformLocation; // Added for HW2
+  unifBombOffset : WebGLUniformLocation; // Added for HW2
 
   constructor(shaders: Array<Shader>) {
     this.prog = gl.createProgram();
@@ -47,6 +51,10 @@ class ShaderProgram {
     this.unifUp   = gl.getUniformLocation(this.prog, "u_Up");
     this.unifDimensions   = gl.getUniformLocation(this.prog, "u_Dimensions");
     this.unifTime   = gl.getUniformLocation(this.prog, "u_Time");
+    this.unifAnim   = gl.getUniformLocation(this.prog, "u_Anim"); // Added for HW2
+    this.unifColors   = gl.getUniformLocation(this.prog, "u_ColorsOn"); // Added for HW2
+    this.unifSpeed   = gl.getUniformLocation(this.prog, "u_Speed"); // Added for HW2
+    this.unifBombOffset   = gl.getUniformLocation(this.prog, "u_BombOffset"); // Added for HW2
   }
 
   use() {
@@ -73,6 +81,38 @@ class ShaderProgram {
     this.use();
     if(this.unifDimensions !== -1) {
       gl.uniform2f(this.unifDimensions, width, height);
+    }
+  }
+
+  // Added for HW2
+  setUAnim(t: number) {
+    this.use();
+    if(this.unifAnim !== -1) {
+      gl.uniform1f(this.unifAnim, t);
+    }
+  }
+
+  // Added for HW2
+  setUColorsOn(t: number) {
+    this.use();
+    if(this.unifColors !== -1) {
+      gl.uniform1f(this.unifColors, t);
+    }
+  }
+
+  // Added for HW2
+  setUSpeed(t: number) {
+    this.use();
+    if(this.unifSpeed !== -1) {
+      gl.uniform1f(this.unifSpeed, t);
+    }
+  }
+
+  // Added for Hw2
+  setBombOffset(x : number, y : number, z : number){
+    this.use();
+    if(this.unifBombOffset !== -1){
+      gl.uniform3f(this.unifBombOffset, x, y, z);
     }
   }
 
