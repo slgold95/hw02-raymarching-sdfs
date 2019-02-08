@@ -41,11 +41,6 @@ float intersectOp( float d1, float d2 ){
     return max(d1,d2);
 }
 
-// rotations
-vec3 rotateZ(vec3 p, float a){
-  return vec3(cos(a)*p.x - sin(a)*p.y, sin(a)*p.x + cos(a)*p.y, p.z);
-}
-
 // rotation
 vec2 rot(vec2 v, float y){
     return cos(y)*v + sin(y)*vec2(-v.y, v.x);
@@ -136,14 +131,6 @@ float cappedCylinderSDF(vec3 p, vec2 h)
   return min(max(d.x,d.y),0.0) + length(max(d,0.0));
 }
 
-// Capsule
-float capsuleSDF( vec3 p, vec3 a, vec3 b, float r )
-{
-    vec3 pa = p - a, ba = b - a;
-    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
-    return length( pa - ba*h ) - r;
-}
-
 // Ellipsoid
 float ellipsoidSDF(in vec3 p, in vec3 r)
 {
@@ -152,11 +139,93 @@ float ellipsoidSDF(in vec3 p, in vec3 r)
   return k0 * (k0 - 1.0) / k1;
 }
 
-// Triangle
-float dot2( in vec3 v ) {  // method used in triangleSDF
-  return dot(v,v);
-   }
+// Attempt at a bounding box hierarchy
+// struct for the bounding box
+struct BoundingBox{
+ vec3 minXYZs;
+ vec3 maxXYZs;
+};
 
+// global array of bounding boxes
+BoundingBox boxes[2];
+
+// from CIS560 raycasting slides
+float boxRayInterectionTest(BoundingBox box, vec3 rayStart, vec3 dir){
+        float tNear = -99999.0;
+        float tFar = 99999.0;
+
+      // for each pair of planes associated with the X, Y, Z axes
+      for(int i = 0; i < 3; i ++) {
+
+           // if slope(dir) is 0, the rays are parallel and will never intersect
+          if(dir[i] == 0.0){
+               if(rayStart[i] < box.minXYZs[i] || rayStart[i] > box.maxXYZs[i] ){
+               return tFar; // will never intersect
+              }
+           } // closes the if
+
+          // setting up t vals
+          float t0 = (box.minXYZs[i] - rayStart[i]) / dir[i];
+          float t1 = (box.maxXYZs[i] - rayStart[i]) / dir[i];
+
+          // swap t0 and t1 if t0 is greater than t1
+          if(t0 > t1){
+            float temp = t0;
+            t0 = t1;
+            t1 = temp;
+          }
+          if(t0 > tNear){
+           tNear = t0;
+          }
+         if(t1 < tFar){
+           tFar = t1;
+         }
+      } // closes the for loop
+
+// if no intersection
+if(tNear > tFar){
+    return tFar;
+}
+
+// otherwise you did intersect
+return tNear;
+}
+
+// Bounding Volume Hierarchy Function
+float bvhFunc(vec3 p, vec3 dir, BoundingBox boxes[2]){
+    float t = 10000.0;
+    
+    for(int i = 0; i < boxes.length(); i ++){
+        float hit = boxRayInterectionTest(boxes[i], p, dir);
+        if(t > hit){
+            t = hit;            
+        }
+    }
+    return t;
+}
+
+// creating Bounding Boxes for each "shape" in scene
+BoundingBox makeBombBox(vec3 p){
+    BoundingBox box;
+    vec3 point = p - vec3(0.0, 15.0, 0.0) + vec3(0.0, 8.0, -5.0) + vec3(u_BombOffset.x, -u_BombOffset.y, u_BombOffset.z);
+    box.minXYZs = point - vec3(-7.0, -13.0, -1.0);
+    box.maxXYZs = point - vec3(7.0), 13.0, 5.0;
+    return box;
+}
+
+BoundingBox makeChompBox(vec3 p){
+    BoundingBox box;  
+    vec3 point = p + vec3(7.0, -1.0, 0.0);
+    box.minXYZs = point + vec3(-6.0, -1.9, 0.0);
+    box.maxXYZs = point + vec3(8.6, 0.0, 2.0);
+    return box;
+}
+
+// initial the bounding boxes
+void initBoxes(vec3 p){
+    boxes[0] = makeBombBox(p);
+    boxes[1] = makeChompBox(p);
+}
 
 // SceneSDF
 // in the vec3 being returned .x is the float, .y is the color ID
@@ -176,12 +245,7 @@ vec3 sceneSDF(vec3 point){
   // Chain Chomp
   vec3 pos = vec3(point.x + 7.0, point.y - 1.0, point.z);  
   pos.y = pos.y + move;
-  float chomp = sphereSDF(pos, 3.0); // big chomp ball
-  //pos = vec3(point.x + 7.0, point.y + 0.7, point.z + 3.0);
-  //pos.yz = rot(pos.yz, 0.785398); 
-  //float box = boxSDF(pos, vec3(3.0, 0.8, 0.8));
-  //chomp = subOp(box, chomp);
-
+  float chomp = sphereSDF(pos, 3.0); // big chomp ball 
   pos = vec3(point.x + 4.0 -0.6, point.y, point.z);
   pos.y = pos.y + moveOffset1; 
   float chain = sphereSDF(pos, 1.0); // smal chain ball rightmost
@@ -212,7 +276,7 @@ vec3 sceneSDF(vec3 point){
   float chompInEye2 = ellipsoidSDF(pos, vec3(0.3, 0.3, 0.3));
 
   // Makes Bomb
-  float bombBody = sphereSDF(point - vec3(0.0, 15.0, 0.0) + bombOffset, 5.); // Bomb Body
+  float bombBody = sphereSDF(point - vec3(0.0, 15.0, 0.0) + bombOffset, 5.0); // Bomb Body
   pos = vec3(point.x - 5.0, point.y - 13.0, point.z) + bombOffset;
   float leftArm = sphereSDF(pos, 1.0); // Bomb left arm 
   pos = vec3(point.x - 7.0, point.y - 11.5, point.z) + bombOffset; 
@@ -261,7 +325,7 @@ vec3 sceneSDF(vec3 point){
   pos = point - vec3(-5.0, -5.0, -4.0);
   pos.y = pos.y + sw;
   float e2 = ellipsoidSDF(pos, vec3(1.0, 5.0, 1.0));  
-  e1 = intersectOp(e1, e2);
+  e1 = intersectOp(e1, e2);  
 
   // drawing and coloring
   
@@ -274,9 +338,7 @@ vec3 sceneSDF(vec3 point){
   temp = minVec(temp, vec3(chompInEye2, 1.0, 0.0));
   temp = minVec(temp, vec3(bombBody, 1.5, 0.0)); // bomb body  
   temp = minVec(temp, vec3(leftArm, 5.0, 0.0));   
-  temp = minVec(temp, vec3(rightArm, 5.0, 0.0)); 
-  //temp = minVec(temp, vec3(leftHand, 5.0, 0.0)); 
-  //temp = minVec(temp, vec3(rightHand, 5.0, 0.0)); 
+  temp = minVec(temp, vec3(rightArm, 5.0, 0.0));    
   temp = minVec(temp, vec3(leftLeg, 4.0, 0.0)); 
   temp = minVec(temp, vec3(rightLeg, 4.0, 0.0)); 
   temp = minVec(temp, vec3(leftFoot, 5.0, 0.0)); 
@@ -286,20 +348,18 @@ vec3 sceneSDF(vec3 point){
   temp = minVec(temp, vec3(crownBase, 7.0, 0.0));
   temp = minVec(temp, vec3(coin, 8.0, 0.0));
   temp = minVec(temp, vec3(coinRed, 9.0, 0.0));
-  temp = minVec(temp, vec3(e1, 9.0, 0.0)); // intersection
-    
+  temp = minVec(temp, vec3(e1, 9.0, 0.0)); // intersection 
+
   return temp;
 }
 
-// Referenced http://patriciogonzalezvivo.com
+// random, noise, and fbm from Book of Shaders
 float random (in vec2 st) {
     return fract(sin(dot(st.xy,
                          vec2(12.9898,78.233)))*
         43758.5453123);
 }
 
-// Based on Morgan McGuire @morgan3d
-// https://www.shadertoy.com/view/4dS3Wd
 float noise (in vec2 st) {
     vec2 i = floor(st);
     vec2 f = fract(st);
@@ -317,7 +377,7 @@ float noise (in vec2 st) {
             (d - b) * u.x * u.y;
 }
 
-// based on lecture slides
+// based on lecture slides and Book of Shaders
 float fbm (in vec2 st) {
     // Initial values
     float total = 0.0;
@@ -350,9 +410,10 @@ vec3 march(vec3 origin, vec3 marchDir, float start, float end){
   float dist = 0.0;
   float colorID = 0.0;
   float depth = start;
-    
+      
   for (int i = 0; i < RAY_STEPS; i ++){
     vec3 pos = origin + depth * marchDir;
+    //dist = bvhFunc(u_Eye, marchDir, boxes);
     temp = sceneSDF(pos);
     dist = temp.x; // the minimum distance
     colorID = temp.y; // the color ID
@@ -455,11 +516,13 @@ void main() {
   vec3 pixel = u_Ref + (fs_Pos.x*H) + (fs_Pos.y*V);
   vec3 dir = normalize(pixel - u_Eye);
   vec3 color = 0.5 * (dir + vec3(1.0, 1.0, 1.0)); // test rays
+
+    // initialize the bounding boxes
+   initBoxes(u_Eye * dir);
   
   // ray marching
   vec3 marchVals = march(u_Eye, dir, MIN_DIST, MAX_DIST);
-  //float dist = march(u_Eye, dir, MIN_DIST, MAX_DIST);
-  //float dist = march(u_Eye, dir);
+
   float dist = marchVals.x;
   float colorVal = marchVals.y;
   if(dist > 100.0 - EPSILON){
@@ -494,9 +557,5 @@ void main() {
   float ambientTerm = 0.2;
   float lightIntensity = diffuseTerm + ambientTerm;
 
-  //vec3 colorVec = vec3(1.0, 0.0, 0.0);
   out_Col = vec4(getColor(colorVal, lightIntensity, specularInt, u_Eye + marchVals.x * dir), 1.0);
-  
-  //out_Col = vec4(0.5 * (fs_Pos + vec2(1.0)), 0.5 * (sin(u_Time * 3.14159 * 0.01) + 1.0), 1.0);
-  //out_Col = vec4(color, 1.0);
 }
